@@ -110,10 +110,10 @@ with gr.Blocks() as demo:
                 read_config.change(fn=update, inputs=read_config, outputs=[cnf_path])
 
         server_name = gr.Textbox(label="Server Name")
-        default_bits = gr.Textbox(label="Default bits")
+        default_bits = gr.Number(label="Default bits",value=2048,interactive=True)
         default_keyfile = gr.Textbox(label="Default Keyfile")
         distinguished_name = gr.Textbox(label="Distinguished Name",value="req_distinguished_name")
-        prompt = gr.Textbox(label="Prompt")
+        prompt = gr.Textbox(label="Prompt",value='no')
         req_extensions = gr.Textbox(label="Req extensions",value="req_ext")
         
         gr.HTML("<h2>[req_distinguished_name]</h2>")
@@ -123,7 +123,7 @@ with gr.Blocks() as demo:
         org = gr.Textbox(label="Organization (O)")
         org_unit = gr.Textbox(label="Organizational Unit (OU)")
         cn = gr.Textbox(label="Common Name (CN)")
-        email = gr.Textbox(label="Email Address")
+        email = gr.Textbox(label="Email Address",type='email')
         gr.HTML("<h2>[req_ext]</h2>")
         subjectAltName = gr.Textbox(label="subjectAltName",value="@alt_names")
         gr.HTML("<h2>[alt_names]</h2>")
