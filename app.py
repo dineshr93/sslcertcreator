@@ -4,21 +4,56 @@ from gradio_toggle import Toggle
 import pandas as pd
 from tkinter import Tk, filedialog
 
-def create_csr(server_name, country, state, locality, org, org_unit, cn, email):
-    return f"""
-    [req]
-    distinguished_name = req_distinguished_name
-    req_extensions = req_ext
+import subprocess
 
-    [req_distinguished_name]
-    C = {country}
-    ST = {state}
-    L = {locality}
-    O = {org}
-    OU = {org_unit}
-    CN = {cn}
-    emailAddress = {email}
-    """
+def run_command(cmd: str) -> str:
+    """Executes a Bash command and returns the output log."""
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    return result.stdout.strip() if result.stdout else result.stderr.strip()
+
+def create_csr(cnf_path,prompt,password,default_bits, default_keyfile,distinguished_name,
+                req_extensions,server_name, country, state, locality,
+                org, org_unit, cn, email,subjectAltName,default_save_location,dataframe):
+
+    # output = run_command("ls -l")
+    dns_alt_names = dataframe["DNS Alt Name"].tolist()
+    DNS=""
+    for i,name in enumerate(dns_alt_names,start=1):
+        DNS=DNS+f"DNS.{i} = {name}\n"
+    
+    cnf_file_text = f"""
+[req]
+distinguished_name = {distinguished_name}
+prompt = {prompt}
+default_bits = {default_bits}
+default_keyfile = {default_keyfile}
+req_extensions = {req_extensions}
+
+[req_distinguished_name]
+C = {country}
+ST = {state}
+L = {locality}
+O = {org}
+OU = {org_unit}
+CN = {cn}
+emailAddress = {email}
+
+[req_ext]
+subjectAltName = {subjectAltName}
+
+[alt_names]
+{DNS}
+"""
+    cnf_file=os.path.join(default_save_location,f"{server_name}.cnf")
+    key_file=os.path.join(default_save_location,f"{server_name}.key")
+    csr_file=os.path.join(default_save_location,f"{server_name}.csr")
+    with open(cnf_file, "w") as file:
+        file.write(cnf_file_text)
+
+    command = f"openssl req -new -config {cnf_file} -keyout {key_file} -out {csr_file} -passout pass:{password} -verbose"
+    
+
+    return run_command(command) + f"your passphrase is set as {password}"
 
 def convert_certificate(cert, new_format):
     return f"Converting {cert} to {new_format}..."  # Placeholder logic
@@ -32,8 +67,15 @@ def update(input):
     visible = input
     return gr.update(visible=visible)
 
-def create_dataframe():
-    df = pd.DataFrame({"Column 1": [""], "Column 2": [""]})  # Empty rows for user input
+def create_dataframe(data):
+    df = pd.DataFrame(data)  # Empty rows for user input
+    return df
+def create_dataframe_org(server_name,org):
+    data = {
+        "Nr.": ["DNS.1", "DNS.2", "DNS.3", "DNS.4"],
+        "DNS Alt Name": [f"{server_name}", f"{server_name}.{org}.com", "actual_server", f"actual_server.{org}.com"]
+    }
+    df = pd.DataFrame(data)  # Empty rows for user input
     return df
 
 def get_folder_path(folder_path: str = "") -> str:
@@ -87,6 +129,14 @@ def create_folder_ui(path="./",label="Directory",info="choose directory"):
         )
 
     return text_box, button
+def update_keyfile(server_name):
+    return f"{server_name}.key" if server_name else ""
+def update_pass(server_name):
+    return f"{server_name}" if server_name else ""
+def update_cn(server_name,company):
+    return f"{server_name}.{company}.com" if server_name else ""
+def update_email(server_name,company):
+    return f"admin_{server_name}@{company}.com" if server_name else ""
 with gr.Blocks() as demo:
     gr.HTML("<h1>SSL Certificate creator</h1>")
     with gr.Tab("CSR Request"):
@@ -109,32 +159,51 @@ with gr.Blocks() as demo:
                 
                 read_config.change(fn=update, inputs=read_config, outputs=[cnf_path])
 
-        server_name = gr.Textbox(label="Server Name")
+        server_name = gr.Textbox(label="Server Name", info="single word without spaces")
         default_bits = gr.Number(label="Default bits",value=2048,interactive=True)
-        default_keyfile = gr.Textbox(label="Default Keyfile")
-        distinguished_name = gr.Textbox(label="Distinguished Name",value="req_distinguished_name")
-        prompt = gr.Textbox(label="Prompt",value='no')
-        req_extensions = gr.Textbox(label="Req extensions",value="req_ext")
+        default_keyfile = gr.Textbox(label="Default Keyfile", info="Private keyfile.usually server_name.key")
+        distinguished_name = gr.Textbox(label="Distinguished Name",value="req_distinguished_name",interactive=False)
+        prompt = gr.Textbox(label="Prompt",value='no',interactive=False)
+        password = gr.Textbox(label="password",value='no',type="password",interactive=True,info="default will be same as server name.(use single word without spaces)")
+        server_name.change(fn=update_pass, inputs=server_name, outputs=password)
+        req_extensions = gr.Textbox(label="Req extensions",value="req_ext",interactive=False)
+        server_name.change(fn=update_keyfile, inputs=server_name, outputs=default_keyfile)
         
         gr.HTML("<h2>[req_distinguished_name]</h2>")
-        country = gr.Textbox(label="Country (C)")
-        state = gr.Textbox(label="State (ST)")
-        locality = gr.Textbox(label="Locality (L)")
-        org = gr.Textbox(label="Organization (O)")
-        org_unit = gr.Textbox(label="Organizational Unit (OU)")
-        cn = gr.Textbox(label="Common Name (CN)")
-        email = gr.Textbox(label="Email Address",type='email')
+        country = gr.Textbox(label="Country (C)",value="DE", info="single word without spaces")
+        state = gr.Textbox(label="State (ST)",value="Baden-Wuerttemberg", info="single word without spaces")
+        locality = gr.Textbox(label="Locality (L)",value="Ulm", info="single word without spaces")
+        org = gr.Textbox(label="Organization (O)",value="Company")
+        org_unit = gr.Textbox(label="Organizational Unit (OU)",value="OSRB", info="single word without spaces")
+        cn = gr.Textbox(label="Common Name (CN)",value="", info="single word without spaces")
+        server_name.change(fn=update_cn, inputs=[server_name,org], outputs=cn)
+        org.change(fn=update_cn, inputs=[server_name,org], outputs=cn)
+        email = gr.Textbox(label="Email Address",type='email',value="nightly@company.com")
+        org.change(fn=update_email, inputs=[server_name,org], outputs=email)
         gr.HTML("<h2>[req_ext]</h2>")
-        subjectAltName = gr.Textbox(label="subjectAltName",value="@alt_names")
+        subjectAltName = gr.Textbox(label="subjectAltName",value="@alt_names",interactive=False)
         gr.HTML("<h2>[alt_names]</h2>")
+
+        data = {
+            "Nr.": ["DNS.1", "DNS.2", "DNS.3", "DNS.4"],
+            "DNS Alt Name": ["", "", "", ""]
+        }
+        
         dataframe = gr.Dataframe(
+            create_dataframe(data),
             headers=["Nr.", "DNS Alt Name"], 
             datatype=["str", "str"], 
-            interactive=True
+            interactive=True,
+            row_count=4,
+            col_count=2,
         )
+        server_name.change(fn=create_dataframe_org, inputs=[server_name,org], outputs=dataframe)
+        org.change(fn=create_dataframe_org, inputs=[server_name,org], outputs=dataframe)
         default_save_location,_=create_folder_ui(label="Default save location")
         csr_output = gr.Textbox(label="CSR Output")
-        gr.Button("Create CSR").click(create_csr, [server_name, country, state, locality, org, org_unit, cn, email,default_save_location], csr_output)
+        gr.Button("Create CSR").click(create_csr, [cnf_path,prompt,password,default_bits, default_keyfile,distinguished_name,
+                                                   req_extensions,server_name, country, state, locality, \
+                                                   org, org_unit, cn, email,subjectAltName,default_save_location,dataframe], csr_output)
     
     with gr.Tab("Convert Certificate"):
         cert = gr.File(label="Certificate File",interactive=True,height=120)
