@@ -1,8 +1,7 @@
 import gradio as gr
 import os
-from gradio_toggle import Toggle
 import pandas as pd
-from tkinter import Tk, filedialog
+# from tkinter import Tk, filedialog
 
 import subprocess
 
@@ -25,7 +24,7 @@ def delete_csr(default_save_location,server_name):
     csr_file = gr.File(label="downloadable certificate",interactive=False)
     return cmd,None,None,None
 
-def create_csr(cnf_path,prompt,password,default_bits, default_keyfile,distinguished_name,
+def create_csr(prompt,password,default_bits, default_keyfile,distinguished_name,
                 req_extensions,server_name, country, state, locality,
                 org, org_unit, cn, email,subjectAltName,default_save_location,dataframe):
 
@@ -93,58 +92,6 @@ def create_dataframe_org(server_name,org):
     df = pd.DataFrame(data)  # Empty rows for user input
     return df
 
-def get_folder_path(folder_path: str = "") -> str:
-    """
-    Opens a folder dialog to select a folder, allowing the user to navigate and choose a folder.
-    If no folder is selected, returns the initially provided folder path or an empty string if not provided.
-    This function is conditioned to skip the folder dialog on macOS or if specific environment variables are present,
-    indicating a possible automated environment where a dialog cannot be displayed.
-
-    Parameters:
-    - folder_path (str): The initial folder path or an empty string by default. Used as the fallback if no folder is selected.
-
-    Returns:
-    - str: The path of the folder selected by the user, or the initial `folder_path` if no selection is made.
-
-    Raises:
-    - TypeError: If `folder_path` is not a string.
-    - EnvironmentError: If there's an issue accessing environment variables.
-    - RuntimeError: If there's an issue initializing the folder dialog.
-
-    Note:
-    - The function checks the `ENV_EXCLUSION` list against environment variables to determine if the folder dialog should be skipped, aiming to prevent its appearance during automated operations.
-    - The dialog will also be skipped on macOS (`sys.platform != "darwin"`) as a specific behavior adjustment.
-    """
-    # Validate parameter type
-    if not isinstance(folder_path, str):
-        raise TypeError("folder_path must be a string")
-
-    try:
-        root = Tk()
-        root.withdraw()
-        root.wm_attributes("-topmost", 1)
-        selected_folder = filedialog.askdirectory(initialdir=folder_path or ".")
-        root.destroy()
-        return selected_folder or folder_path
-    except Exception as e:
-        raise RuntimeError(f"Error initializing folder dialog: {e}") from e
-def create_folder_ui(path="./",label="Directory",info=""):
-    with gr.Row():
-        with gr.Column():    
-            text_box = gr.Textbox(
-                label=label,
-                info=info,
-                lines=1,
-                value=path,
-            )
-            button = gr.Button(value="\U0001f5c0", inputs=text_box, min_width=50)
-
-            button.click(
-                lambda: get_folder_path(text_box.value),
-                outputs=[text_box],
-            )
-
-    return text_box, button
 def update_keyfile(server_name):
     return f"{server_name}.key" if server_name else ""
 def update_pass(server_name):
@@ -156,24 +103,23 @@ def update_email(server_name,company):
 with gr.Blocks() as demo:
     gr.HTML("<h1>SSL Certificate creator</h1>")
     with gr.Tab("CSR Request"):
-        with gr.Row():
-            with gr.Column():
-                read_config = Toggle(
-                    label="Read config from file?",
-                    value=False,
-                    info="Read config from file?",
-                    interactive=True,
-                )
-            with gr.Column():
-                cnf_path = gr.File(
-                    label="CNF Path", 
-                    visible=False,
-                    file_count='single',
-                    interactive=True,
-                    height=120
-                    )
-                
-                read_config.change(fn=update, inputs=read_config, outputs=[cnf_path])
+        # with gr.Row():
+        #     with gr.Column():
+        #         read_config = Toggle(
+        #             label="Read config from file?",
+        #             value=False,
+        #             info="Read config from file?",
+        #             interactive=True,
+        #         )
+        #     with gr.Column():
+        #         cnf_path = gr.File(
+        #             label="CNF Path", 
+        #             visible=False,
+        #             file_count='single',
+        #             interactive=True,
+        #             height=120
+        #             )
+                #   read_config.change(fn=update, inputs=read_config, outputs=[cnf_path])S
         with gr.Row():
             with gr.Column():
                 gr.HTML("<h3>Main Section</h3>")
@@ -220,7 +166,8 @@ with gr.Blocks() as demo:
                 org.change(fn=create_dataframe_org, inputs=[server_name,org], outputs=dataframe)
             with gr.Column():
                 gr.HTML("<h3>Output location</h3>")
-                default_save_location,_=create_folder_ui(label="Default save location")
+                # default_save_location,_=create_folder_ui(label="Default save location")
+                default_save_location =gr.Textbox(label="Default save location",value="./",interactive=False)
                 # gr.HTML("<h3>Output log</h3>")
                 csr_output = gr.Textbox(label="CSR Output",lines=8)
         # file_output = gr.File(label="downloadable Files",interactive=True,height=120)
@@ -233,7 +180,7 @@ with gr.Blocks() as demo:
                 csr_file_view = gr.File(label="downloadable certificate",interactive=False, height=50)
         with gr.Row():
             with gr.Column():
-                gr.Button("Create CSR").click(create_csr, [cnf_path,prompt,password,default_bits, default_keyfile,distinguished_name,
+                gr.Button("Create CSR").click(create_csr, [prompt,password,default_bits, default_keyfile,distinguished_name,
                                                    req_extensions,server_name, country, state, locality, \
                                                    org, org_unit, cn, email,subjectAltName,default_save_location,dataframe], [csr_output,cnf_file_view,key_file_view,csr_file_view])
             with gr.Column():
@@ -246,7 +193,7 @@ with gr.Blocks() as demo:
     
     with gr.Tab("Convert Certificate"):
         cert = gr.File(label="Certificate File",interactive=True,height=120)
-        new_place,_=create_folder_ui(label="New Place",info="To store converted certificate")
+        new_place=gr.Textbox(label="New Place",info="To store converted certificate",value="./",interactive=False)
         with gr.Row():
             with gr.Column():
                 detected_format = gr.Textbox(label="Detected Format",interactive=False)
@@ -260,7 +207,7 @@ with gr.Blocks() as demo:
         key = gr.File(label="Certificate Key",height=120,interactive=True)
         password = gr.Textbox(label="Keystore Password", type="password")
         platform = gr.Dropdown(["Linux", "Windows"], label="Platform")
-        Keystore_save_place,_ = create_folder_ui(label="Keystore save place",info="To store loaded keystore")
+        Keystore_save_place = gr.Textbox(label="Keystore save place",info="To store loaded keystore",value="./",interactive=False)
         # Keystore_save_place = gr.Textbox(label="Keystore save place")
 
         keystore_output = gr.Textbox(label="Keystore Output")
