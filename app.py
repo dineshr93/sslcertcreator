@@ -68,13 +68,44 @@ subjectAltName = {subjectAltName}
 
     return run_command(command) + f"your passphrase is set as {password}",cnf_file,key_file,csr_file
 
-def convert_certificate(cert, new_format):
-    return f"Converting {cert} to {new_format}..."  # Placeholder logic
+def convert_certificate(cert, new_place):
+    cert_path = cert.name if cert else ""
+    if not cert_path:
+        return "Error: No certificate file provided."
+    
+    new_cert_path = os.path.join(new_place, "converted_cert.pem")
+    command = f"openssl x509 -in {cert} -out {new_cert_path} -outform PEM"
+    
+    result = run_command(command)
+    return f"Conversion completed: {new_cert_path}\n{result}"
 
-def create_keystore(cert, key, password, platform):
-    return f"Keystore created for {platform} with certificate {cert}."  # Placeholder logic
+def create_keystore(cert, key, password, platform, keystore_place):
+    cert_path = cert.name if cert else ""
+    key_path = key.name if key else ""
+    keystore_path = os.path.join(keystore_place, "keystore.jks")
+    
+    if not cert_path or not key_path:
+        return "Error: Certificate or Key file missing."
+    
+    command = (
+        f"openssl pkcs12 -export -in {cert_path} -inkey {key_path} "
+        f"-out {keystore_path} -password pass:{password}"
+    )
+    
+    result = run_command(command)
+    return f"Keystore created at {keystore_path}\n{result}"
+
 def root_ca_integrator(cert, key, password, platform):
-    return f"Keystore created for {platform} with certificate {cert}."  # Placeholder logic
+    cert_path = cert.name if cert else ""
+    key_path = key.name if key else ""
+    
+    if not cert_path or not key_path:
+        return "Error: Certificate or Key file missing."
+    
+    command = f"openssl verify -CAfile {cert_path} {key_path}"
+    result = run_command(command)
+    
+    return f"Root CA integration result:\n{result}"
 
 def update(input):
     visible = input
@@ -192,7 +223,7 @@ with gr.Blocks() as demo:
         
     
     with gr.Tab("Convert Certificate"):
-        cert = gr.File(label="Certificate File",interactive=True,height=120)
+        cert = gr.File(label="Certificate File",file_count='single',interactive=True,height=120)
         new_place=gr.Textbox(label="New Place",info="To store converted certificate",value="./",interactive=False)
         with gr.Row():
             with gr.Column():
@@ -203,8 +234,8 @@ with gr.Blocks() as demo:
         gr.Button("Convert").click(convert_certificate, [cert, new_place], convert_output)
     
     with gr.Tab("Create New Keystore"):
-        cert = gr.File(label="Keystore Certificate",height=120,interactive=True)
-        key = gr.File(label="Certificate Key",height=120,interactive=True)
+        cert = gr.File(label="Keystore Certificate",file_count='single',height=120,interactive=True)
+        key = gr.File(label="Certificate Key",file_count='single',height=120,interactive=True)
         password = gr.Textbox(label="Keystore Password", type="password")
         platform = gr.Dropdown(["Linux", "Windows"], label="Platform")
         Keystore_save_place = gr.Textbox(label="Keystore save place",info="To store loaded keystore",value="./",interactive=False)
@@ -214,7 +245,7 @@ with gr.Blocks() as demo:
         gr.Button("Create Keystore now").click(create_keystore, [cert, key, password, platform,Keystore_save_place], keystore_output)
 
     with gr.Tab("Root CA Integrator"):
-        keystore = gr.File(label="Keystore",height=120,interactive=True)
+        keystore = gr.File(label="Keystore",file_count='single',height=120,interactive=True)
         root_ca_url = gr.Textbox(label="Root CA URL")
         keystore_password = gr.Textbox(label="Keystore Password", type="password")
         with gr.Row():
