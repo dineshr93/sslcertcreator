@@ -1,6 +1,6 @@
 CONTAINER_ID_FILE := container_id.txt
 
-.PHONY: br run rm
+.PHONY: r run rm
 
 r:
 	-docker rm -f $$(cat $(CONTAINER_ID_FILE) 2>/dev/null) || true
